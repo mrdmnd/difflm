@@ -1,0 +1,19 @@
+[project]
+name = "difflm"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "accelerate>=1.6.0",
+    "bitsandbytes>=0.45.5",
+    "jaxtyping>=0.3.2",
+    "loguru>=0.7.3",
+    "numpy>=2.2.5",
+    "torch>=2.7.0",
+    "transformers>=4.51.3",
+    "typeguard>=4.4.2",
+]
+
+[tool.ruff]
+lint.ignore = ["F722"]
