@@ -14,8 +14,8 @@ from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
 class InferenceConfig:
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     mask_id: int = 126336
-    generation_length: int = 50
-    max_steps: int = 70
+    generation_length: int = 128
+    max_steps: int = 64
     gumbel_tau: float = 0.2
 
 
@@ -59,9 +59,10 @@ def determine_transfer_token_count(
     if eligible_confidences.numel() == 0:
         return 0  # No tokens left to transfer
     avg_conf = eligible_confidences.mean().item()
-    if avg_conf < 0.7:
+    logger.info(f"Average confidence: {avg_conf}")
+    if avg_conf < 0.25:
         return 1
-    elif avg_conf < 0.8:
+    elif avg_conf < 0.5:
         return 2
     else:
         return 3
@@ -71,7 +72,7 @@ def determine_transfer_token_count(
 def determine_transfers(
     confidence: Float32[torch.Tensor, "1 canvas_length"],
     eligible_indices: Bool[torch.Tensor, "1 canvas_length"],
-    transfer_token_count: int,
+    progress: float,
 ) -> Bool[torch.Tensor, "1 canvas_length"]:
     """
     Confidence is a tensor of shape (1, canvas_length), where each element is the confidence of the corresponding token
@@ -79,6 +80,8 @@ def determine_transfers(
 
     We also include a *mask* index that corresponds to the tokens we might want to transfer.
     """
+    # first, figure out how many tokens we should transfer as a function of progress
+    # when progress == 1.0 that's the last step so we need to transfer all the tokens.
 
     # NOTE: we are only considering the top-k highest confidence *generation* tokens, not including the prompt.
     masked_confidence = torch.where(eligible_indices, confidence, torch.full_like(confidence, -np.inf))
@@ -93,6 +96,7 @@ def determine_transfers(
 def diffusion_step(
     canvas: Int64[torch.Tensor, "1 canvas_length"],
     eligible_indices: Bool[torch.Tensor, "1 canvas_length"],
+    progress: float,
     model: torch.nn.Module,
     conf: InferenceConfig,
     tokenizer: AutoTokenizer,
@@ -122,15 +126,12 @@ def diffusion_step(
     confidence = torch.squeeze(torch.gather(p, dim=-1, index=sampled_tokens.unsqueeze(-1)), -1)  # (1, canvas_length)
     logger.info(f"Confidence:\n{confidence}")
 
-    # determine how many tokens to transfer based on our confidence
-    transfer_token_count = determine_transfer_token_count(confidence, eligible_indices)
-
     # Determine which tokens to transfer from the sampled tokens back to the canvas, and which to leave masked.
     # We should transfer the tokens with the highest confidence and remask the rest.
-    transfer_indices = determine_transfers(confidence, eligible_indices, transfer_token_count)
+    transfer_indices = determine_transfers(confidence, eligible_indices, progress)
 
-    # Update the canvas with the sampled tokens and leave the rest as they were already generated.
-    # TODO(mrdmnd) - we should probably actually remask, rather than just leaving them as they were, right?
+    # For eligible positions: transfer if selected, else remask.
+    # For non-eligible (prompt) positions: keep original canvas.
     updated_canvas = torch.where(transfer_indices, sampled_tokens, canvas)
 
     return updated_canvas
@@ -159,11 +160,12 @@ def generate_response(
     mask_index: Bool[torch.Tensor, "1 canvas_length"] = canvas == conf.mask_id
 
     logger.info(f"Starting generation with {conf.max_steps} maximum steps")
-    for step in tqdm(range(conf.max_steps)):
+    for step in tqdm(range(1, conf.max_steps + 1)):
+        progress = 1.0 * step / conf.max_steps
         if not mask_index.any():
             logger.info("No more masked tokens to unmask.")
             break
-        canvas = diffusion_step(canvas, mask_index, model, conf, tokenizer)
+        canvas = diffusion_step(canvas, mask_index, progress, model, conf, tokenizer)
         logger.info(f"Generation step {step} complete: {tokenizer.decode(canvas[0].tolist())}")
         mask_index: Bool[torch.Tensor, "1 canvas_length"] = canvas == conf.mask_id
 
