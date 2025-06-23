@@ -10,9 +10,10 @@ dependencies = [
     "jaxtyping>=0.3.2",
     "loguru>=0.7.3",
     "numpy>=2.2.5",
+    "polyfactory>=2.21.0",
+    "pydantic>=2.11.5",
     "torch>=2.7.0",
     "transformers>=4.51.3",
-    "typeguard>=4.4.2",
 ]
 
 [tool.ruff]
