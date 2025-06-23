@@ -15,32 +15,8 @@ class InferenceConfig:
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     mask_id: int = 126336
     generation_length: int = 50
-    max_steps: int = 40
+    max_steps: int = 70
     gumbel_tau: float = 0.2
-
-
-def precompute_num_transfer_tokens(
-    initial_mask_index: Bool[torch.Tensor, "1 canvas_length"],
-    conf: InferenceConfig,
-) -> Int64[torch.Tensor, "1 max_steps"]:
-    """
-    In the reverse process, the interval [0, 1] is uniformly discretized into `max_steps` intervals.
-    Because LLaDa employs a linear noise schedule, the number of tokens to unmask at each step should be ~consistent
-    (up to remainder). This function precompute the number of tokens to unmask at each step, for each step.
-
-    For example, if we have 23 masked tokens and five steps, we will get [[5, 5, 5, 4, 4]] as the output.
-    This is because 23 / 5 = 4 remainder 3, so we have all steps getting 4 tokens, and the first three steps get one
-    extra token.
-    """
-    mask_num = initial_mask_index.sum(dim=1, keepdim=True)
-    base = mask_num // conf.max_steps
-    remainder = mask_num % conf.max_steps
-    num_transfer_tokens = (
-        torch.zeros(mask_num.shape[0], conf.max_steps, device=mask_num.device, dtype=torch.int64) + base
-    )
-    for i in range(mask_num.shape[0]):
-        num_transfer_tokens[i, : remainder[i]] += 1
-    return num_transfer_tokens
 
 
 @torch.no_grad()
@@ -70,6 +46,27 @@ def sample_categorical(
     return torch.argmax(scaled_logits + gumbel_noise, dim=-1)
 
 
+def determine_transfer_token_count(
+    confidence: Float32[torch.Tensor, "1 canvas_length"],
+    eligible_indices: Bool[torch.Tensor, "1 canvas_length"],
+) -> int:
+    """
+    Determine how many tokens to transfer based on our confidence.
+    Uses a simple confidence-based curriculum: higher average confidence allows more tokens to be unmasked per step.
+    """
+    # Only consider eligible (masked) positions
+    eligible_confidences = confidence[eligible_indices]
+    if eligible_confidences.numel() == 0:
+        return 0  # No tokens left to transfer
+    avg_conf = eligible_confidences.mean().item()
+    if avg_conf < 0.7:
+        return 1
+    elif avg_conf < 0.8:
+        return 2
+    else:
+        return 3
+
+
 @torch.no_grad()
 def determine_transfers(
     confidence: Float32[torch.Tensor, "1 canvas_length"],
@@ -96,9 +93,9 @@ def determine_transfers(
 def diffusion_step(
     canvas: Int64[torch.Tensor, "1 canvas_length"],
     eligible_indices: Bool[torch.Tensor, "1 canvas_length"],
-    transfer_token_count: int,
     model: torch.nn.Module,
     conf: InferenceConfig,
+    tokenizer: AutoTokenizer,
 ) -> Int64[torch.Tensor, "1 canvas_length"]:
     """
     This function performs a single diffusion step on the canvas, including model inference and remasking.
@@ -107,6 +104,15 @@ def diffusion_step(
 
     # Run the model over the canvas.
     raw_logits = model(canvas).logits  # (1, canvas_length, vocab_size)
+
+    # Block <endoftext> except at the last position
+    eos_token_id = tokenizer.eos_token_id if hasattr(tokenizer, "eos_token_id") else None
+    if eos_token_id is not None:
+        # For all positions except the last, set <endoftext> logit to -inf
+        seq_len = raw_logits.shape[1]
+        if seq_len > 1:
+            raw_logits[:, :-1, eos_token_id] = -float("inf")
+
     # Sample tokens from the model's output.
     sampled_tokens = torch.argmax(
         F.gumbel_softmax(raw_logits, tau=conf.gumbel_tau, hard=False), dim=-1
@@ -114,16 +120,14 @@ def diffusion_step(
     # Determine how confident we are in each of the sampled tokens.
     p = F.softmax(raw_logits, dim=-1)  # (1, canvas_length, vocab_size)
     confidence = torch.squeeze(torch.gather(p, dim=-1, index=sampled_tokens.unsqueeze(-1)), -1)  # (1, canvas_length)
-
     logger.info(f"Confidence:\n{confidence}")
-    logger.info(f"Confidence shape: {confidence.shape}")
+
+    # determine how many tokens to transfer based on our confidence
+    transfer_token_count = determine_transfer_token_count(confidence, eligible_indices)
 
     # Determine which tokens to transfer from the sampled tokens back to the canvas, and which to leave masked.
     # We should transfer the tokens with the highest confidence and remask the rest.
     transfer_indices = determine_transfers(confidence, eligible_indices, transfer_token_count)
-
-    logger.info(f"Transfer indices:\n{transfer_indices}")
-    logger.info(f"Transfer indices shape: {transfer_indices.shape}")
 
     # Update the canvas with the sampled tokens and leave the rest as they were already generated.
     # TODO(mrdmnd) - we should probably actually remask, rather than just leaving them as they were, right?
@@ -153,18 +157,13 @@ def generate_response(
     canvas[:, 0:prompt_length] = input_ids.clone()
 
     mask_index: Bool[torch.Tensor, "1 canvas_length"] = canvas == conf.mask_id
-    # Precompute the number of tokens to unmask at each step.
-    num_transfer_tokens = precompute_num_transfer_tokens(mask_index, conf)
-    logger.info(f"Number of tokens to unmask at each step: {num_transfer_tokens}")
 
     logger.info(f"Starting generation with {conf.max_steps} maximum steps")
     for step in tqdm(range(conf.max_steps)):
-        transfer_token_count = num_transfer_tokens[0, step].item()
-        logger.info(f"Transfer token count: {transfer_token_count}")
         if not mask_index.any():
             logger.info("No more masked tokens to unmask.")
             break
-        canvas = diffusion_step(canvas, mask_index, transfer_token_count, model, conf)
+        canvas = diffusion_step(canvas, mask_index, model, conf, tokenizer)
         logger.info(f"Generation step {step} complete: {tokenizer.decode(canvas[0].tolist())}")
         mask_index: Bool[torch.Tensor, "1 canvas_length"] = canvas == conf.mask_id
 
