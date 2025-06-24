@@ -70,25 +70,30 @@ def bench_quantized_generation(
 ) -> None:
     tokenizer, model = shared_tokenizer, shared_quantized_model
     conf = LLADAInferenceConfig()
-    conf.generation_length = 32
-
-    messages = [{"role": "user", "content": "How many one fourths are there in 7/2?"}]
-
-    print("Warming up w/ one run...")
+    conf.generation_length = 128
+    conf.steps = 50
+    messages = [
+        {
+            "role": "user",
+            "content": "If there are three apples in a basket and two oranges, how many fruits are there in total?",
+        }
+    ]
     generate_response(messages, tokenizer, model, conf)
 
-    print("Running real profiler...")
-    with torch.profiler.profile(
-        activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
-        record_shapes=False,
-        profile_memory=False,
-        with_stack=False,
-    ) as prof:
-        generate_response(messages, tokenizer, model, conf)
+    # print("Warming up...")
+    # for _ in range(3):
+    #     generate_response(messages, tokenizer, model, conf)
 
-    print(f"Simple profiler events: {len(prof.key_averages())}")
-    if len(prof.key_averages()) > 0:
-        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+    # print("Running pytorch profiler...")
+    # with torch.profiler.profile(
+    #     activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+    #     record_shapes=False,
+    #     profile_memory=False,
+    #     with_stack=False,
+    # ) as torch_prof:
+    #     generate_response(messages, tokenizer, model, conf)
+
+    # print(torch_prof.key_averages().table(sort_by="cpu_time_total"))
 
 
 if __name__ == "__main__":

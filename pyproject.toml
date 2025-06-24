@@ -8,6 +8,7 @@ dependencies = [
     "accelerate>=1.6.0",
     "bitsandbytes>=0.45.5; sys_platform == 'linux'",
     "jaxtyping>=0.3.2",
+    "line-profiler>=4.2.0",
     "loguru>=0.7.3",
     "numpy>=2.2.5",
     "polyfactory>=2.21.0",
@@ -70,7 +71,7 @@ select = [
 ]
 
 # Ignore missing TODO link and 
-ignore = ["TD003", "F722"]
+ignore = ["TD003", "F722", "PLR0914"]
 # "bugbear" checks are not fixable by default
 unfixable = ["B"]
 
