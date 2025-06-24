@@ -40,7 +40,7 @@ def shared_quantized_model() -> torch.nn.Module:
 
 
 def shared_full_model() -> torch.nn.Module:
-    print("Loading full model...")
+    logger.info("Loading full model...")
     t1 = time.perf_counter_ns()
     model = AutoModel.from_pretrained(
         "GSAI-ML/LLaDA-8B-Instruct",
@@ -50,27 +50,20 @@ def shared_full_model() -> torch.nn.Module:
         torch_dtype=torch.float16,
     )
     t2 = time.perf_counter_ns()
-    model.tie_weights()
-    print(f"Model loaded in {(t2 - t1) / 1e6:.2f} milliseconds")
+    logger.info(f"Model loaded in {(t2 - t1) / 1e6:.2f} milliseconds")
+
+    # logger.info("Compiling model...")
+    # compiled_model = torch.compile(model)
+    # t3 = time.perf_counter_ns()
+    # logger.info(f"Model compiled in {(t3 - t2) / 1e6:.2f} milliseconds")
+
     return model
 
 
-def bench_basic_generation(
-    shared_tokenizer: PreTrainedTokenizerBase,
-    shared_full_model: torch.nn.Module,
+def bench_generation(
+    tokenizer: PreTrainedTokenizerBase,
+    model: torch.nn.Module,
 ) -> None:
-    tokenizer, model = shared_tokenizer, shared_full_model
-    conf = LLADAInferenceConfig()
-    messages = [{"role": "user", "content": "How many one fourths are there in 7/2?"}]
-    final_text = generate_response(messages, tokenizer, model, conf)
-    print(final_text)
-
-
-def bench_quantized_generation(
-    shared_tokenizer: PreTrainedTokenizerBase,
-    shared_quantized_model: torch.nn.Module,
-) -> None:
-    tokenizer, model = shared_tokenizer, shared_quantized_model
     conf = LLADAInferenceConfig()
     conf.generation_length = 64
     conf.steps = 30
@@ -101,5 +94,5 @@ def bench_quantized_generation(
 
 if __name__ == "__main__":
     tokenizer = shared_tokenizer()
-    model = shared_quantized_model()
-    bench_quantized_generation(tokenizer, model)
+    model = shared_full_model()
+    bench_generation(tokenizer, model)
