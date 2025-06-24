@@ -71,11 +71,11 @@ def bench_quantized_generation(
     tokenizer, model = shared_tokenizer, shared_quantized_model
     conf = LLADAInferenceConfig()
     conf.generation_length = 64
-    conf.steps = 20
+    conf.steps = 30
     messages = [
         {
             "role": "user",
-            "content": "If there are three apples in a basket and two oranges, how many fruits are there in total?",
+            "content": "If there are three apples in a basket and two oranges, how many fruits are there in total? Show your work.",
         }
     ]
     output = generate_response(messages, tokenizer, model, conf)
