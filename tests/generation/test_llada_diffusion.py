@@ -53,3 +53,7 @@ def shared_full_model() -> torch.nn.Module:
     model.tie_weights()
     print(f"Model loaded in {(t2 - t1) / 1e6:.2f} milliseconds")
     return model
+
+
+def test_basic_true() -> None:
+    assert True

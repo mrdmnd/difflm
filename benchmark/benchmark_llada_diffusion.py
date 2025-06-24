@@ -62,6 +62,7 @@ def bench_basic_generation(
     conf = LLADAInferenceConfig()
     messages = [{"role": "user", "content": "How many one fourths are there in 7/2?"}]
     final_text = generate_response(messages, tokenizer, model, conf)
+    print(final_text)
 
 
 def bench_quantized_generation(
@@ -75,7 +76,7 @@ def bench_quantized_generation(
     messages = [
         {
             "role": "user",
-            "content": "If there are three apples in a basket and two oranges, how many fruits are there in total? Show your work.",
+            "content": "If there are three apples in a basket and two oranges, how many fruits are there in total?",
         }
     ]
     output = generate_response(messages, tokenizer, model, conf)

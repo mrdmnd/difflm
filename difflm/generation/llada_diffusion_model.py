@@ -86,7 +86,7 @@ def diffusion_step(
     This function performs a single diffusion step on the canvas, including model inference and remasking.
     We return the updated canvas, which should have strictly fewer masked tokens than the previous canvas.
     """
-    batch_size, canvas_length, vocab_size = raw_logits.shape
+    _, _, vocab_size = raw_logits.shape
     max_entropy_inv = 1.0 / np.log(vocab_size)
 
     # Get the probabilities for each vocabulary token, scaled by temperature, then sample from them.

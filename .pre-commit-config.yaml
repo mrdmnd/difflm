@@ -40,7 +40,7 @@ repos:
         language: system
       - id: mypy
         name: mypy
-        entry: uv run mypy .
+        entry: uv run mypy difflm/ tests/ benchmark/
         language: system
       - id: deptry
         name: deptry

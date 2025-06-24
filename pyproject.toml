@@ -8,29 +8,28 @@ dependencies = [
     "accelerate>=1.6.0",
     "bitsandbytes>=0.45.5; sys_platform == 'linux'",
     "jaxtyping>=0.3.2",
-    "line-profiler>=4.2.0",
     "loguru>=0.7.3",
     "numpy>=2.2.5",
     "polyfactory>=2.21.0",
     "pydantic>=2.11.5",
-    "pytest-benchmark>=5.1.0",
     "torch>=2.7.0",
     "transformers>=4.51.3",
-    "types-tqdm>=4.67.0.20250516",
 ]
 
 [dependency-groups]
 dev = [
+    "types-tqdm>=4.67.0.20250516",
     "deptry>=0.21.1",
     "line-profiler>=4.2.0",
     "memray>=1.15.0",
     "pytest>=8.3.3",
     "pytest-cov>=6.0.0",
-    "ruff>=0",
     "pytest-profiling>=1.8.1",
     "types-requests>=2.31.0",
     "mypy>=1.15.0",
     "pytest-loguru>=0.4.0",
+    "ty>=0.0.1a11",
+    "ruff>=0.12.0",
 ]
 
 [project.optional-dependencies]
@@ -71,7 +70,7 @@ select = [
 ]
 
 # Ignore missing TODO link and
-ignore = ["TD003", "F722", "PLR0914"]
+ignore = ["TD003", "F722", "PLR0914", "TRY003"]
 # "bugbear" checks are not fixable by default
 unfixable = ["B"]
 
@@ -80,6 +79,7 @@ convention = "google"
 
 [tool.ty.rules]
 unresolved-import = "ignore"
+possibly-unbound-attribute = "ignore"
 
 [tool.pytest.ini_options]
 log_cli = true
