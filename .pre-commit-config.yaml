@@ -48,6 +48,6 @@ repos:
         language: system
       - id: pytest
         name: pytest
-        entry: uv run pytest .
+        entry: uv run pytest tests/
         language: system
         always_run: true

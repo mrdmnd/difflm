@@ -3,7 +3,6 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 from jaxtyping import Bool, Float, Int
-from loguru import logger
 from torch import Tensor
 from transformers import PreTrainedTokenizerBase
 
@@ -20,6 +19,18 @@ class LLADAInferenceConfig:
     # temp = 1.0 is default temperature for the model
     # temp < 1.0 is more conserative/peaked / less creative sampling - closer to argmax
     # temp > 1.0 is more creative/spread out / more random sampling
+
+
+@torch.no_grad()
+def apply_structural_constraints(
+    logits: Float[Tensor, "1 canvas_length vocab_size"],
+) -> Float[Tensor, "1 canvas_length vocab_size"]:
+    """
+    Apply structural constraints to the logits.
+
+    Currently a no-op.
+    """
+    return logits
 
 
 @torch.no_grad()
@@ -47,18 +58,15 @@ def adaptive_confidence(
 
     # Signal 1: token probability
     token_probs = torch.gather(probs, dim=-1, index=sampled_tokens.unsqueeze(-1)).squeeze(-1)
-    logger.info(f"token_probs:\n{token_probs}")
 
     # Signal 2: entropy
     entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=-1)
     max_entropy = torch.log(torch.tensor(vocab_size, device=probs.device))
     entropy_confidence = (max_entropy - entropy) / max_entropy
-    logger.info(f"entropy_confidence:\n{entropy_confidence}")
 
     # Signal 3: top-two margin
     top_two_probs, _ = torch.topk(probs, k=2, dim=-1)
     margin = top_two_probs[:, :, 0] - top_two_probs[:, :, 1]
-    logger.info(f"top_two_margin:\n{margin}")
 
     entropy_weight = 2.0 * (1 - progress)
     margin_weight = 2.0 * progress
@@ -80,16 +88,13 @@ def determine_transfers(
     """
     # first, figure out how many tokens we should transfer as a function of progress
     # when progress == 1.0 that's the last step so we need to transfer all the tokens.
-    # for now just set this to 1.
+    # for now just set this to a constant
     transfer_token_count = 4
 
     # NOTE: we are only considering the top-k highest confidence *generation* tokens, not including the prompt.
-    # We could instead randomize!
+    # We could do something else strategically!
     masked_confidence = torch.where(eligible_indices, confidence, torch.full_like(confidence, -np.inf))
-    logger.info(f"masked_confidence:\n{masked_confidence}")
-
     _, topk_indices = torch.topk(masked_confidence, transfer_token_count)
-
     # Set the transfer indices to True where we want to keep a sampled token.
     transfer_indices = torch.zeros((1, confidence.shape[1]), device=confidence.device, dtype=torch.bool)
     transfer_indices[:, topk_indices] = True
@@ -115,13 +120,12 @@ def diffusion_step(
     scaled_logits = raw_logits / conf.sampling_temperature
 
     # THIS IS A NOOP for now - eventually we'll set things to log(prob) = -inf for illegal tokens
-    # constrained_logits = apply_structural_constraints(scaled_logits)
-    constrained_logits = scaled_logits
-
-    probs = torch.nn.functional.softmax(constrained_logits, dim=-1)
+    constrained_logits = apply_structural_constraints(scaled_logits)
 
     # Sample tokens from the renormalized, constrained, noised raw logits
+    probs = torch.nn.functional.softmax(constrained_logits, dim=-1)
     sampled_tokens = torch.multinomial(probs.view(-1, probs.shape[-1]), num_samples=1).view(1, -1)
+
     # Determine how confident we are in each of the sampled tokens.
     token_confidence = adaptive_confidence(probs, sampled_tokens, progress)
 
@@ -153,7 +157,7 @@ def generate_response(
         progress = step / conf.max_steps
         canvas = diffusion_step(canvas, mask_index, progress, model, conf)
         mask_index = canvas == MASK_ID
-        logger.info(f"Generation step {step} complete:\n{tokenizer.decode(canvas[0].tolist())}")
+        # logger.info(f"Generation step {step} complete:\n{tokenizer.decode(canvas[0].tolist())}")
 
     # Decode the canvas.
     return tokenizer.decode(canvas[0].tolist())
