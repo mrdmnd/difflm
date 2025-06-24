@@ -74,6 +74,10 @@ def bench_quantized_generation(
 
     messages = [{"role": "user", "content": "How many one fourths are there in 7/2?"}]
 
+    print("Warming up w/ one run...")
+    generate_response(messages, tokenizer, model, conf)
+
+    print("Running real profiler...")
     with torch.profiler.profile(
         activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
         record_shapes=False,
