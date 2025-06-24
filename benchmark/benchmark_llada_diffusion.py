@@ -2,6 +2,7 @@ import time
 
 import torch
 import torch.profiler
+from loguru import logger
 from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig, PreTrainedTokenizerBase
 
 from difflm.generation.llada_diffusion_model import LLADAInferenceConfig, generate_response
@@ -80,7 +81,7 @@ def bench_quantized_generation(
         }
     ]
     output = generate_response(messages, tokenizer, model, conf)
-    print(output)
+    logger.success(output)
 
     # print("Warming up...")
     # for _ in range(3):
