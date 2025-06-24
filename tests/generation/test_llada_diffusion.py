@@ -57,10 +57,25 @@ def shared_full_model() -> torch.nn.Module:
     return model
 
 
-def test_basic_generation(shared_tokenizer: PreTrainedTokenizerBase, shared_full_model: torch.nn.Module) -> None:
-    tokenizer, model = shared_tokenizer, shared_full_model
+# def test_basic_generation(
+#     shared_tokenizer: PreTrainedTokenizerBase,
+#     shared_full_model: torch.nn.Module,
+# ) -> None:
+#     tokenizer, model = shared_tokenizer, shared_full_model
+#     conf = LLADAInferenceConfig()
+#     messages = [{"role": "user", "content": "Write a very short story about a martian who enjoys pancakes."}]
+#     final_text = generate_response(messages, tokenizer, model, conf)
+#     print(final_text)
+#     assert len(final_text) > 0
+
+
+def test_quantized_generation(
+    shared_tokenizer: PreTrainedTokenizerBase,
+    shared_quantized_model: torch.nn.Module,
+) -> None:
+    tokenizer, model = shared_tokenizer, shared_quantized_model
     conf = LLADAInferenceConfig()
-    messages = [{"role": "user", "content": "Write a very short story about a martian who enjoys pancakes."}]
+    messages = [{"role": "user", "content": "How many one fourths are there in 7/2?"}]
     final_text = generate_response(messages, tokenizer, model, conf)
     print(final_text)
     assert len(final_text) > 0

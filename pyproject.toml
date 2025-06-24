@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "accelerate>=1.6.0",
+    "bitsandbytes>=0.45.5; sys_platform == 'linux'",
     "jaxtyping>=0.3.2",
     "loguru>=0.7.3",
     "numpy>=2.2.5",
@@ -31,7 +32,6 @@ dev = [
 ]
 
 [project.optional-dependencies]
-cuda = ["bitsandbytes>=0.45.5"]
 
 [tool.ruff]
 line-length = 150
