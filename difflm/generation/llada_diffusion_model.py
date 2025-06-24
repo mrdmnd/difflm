@@ -5,8 +5,8 @@ import numpy as np
 import torch
 import torch.compiler
 from jaxtyping import Float, Int
-from loguru import logger
 from torch import Tensor
+from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
 MASK_ID = 126336
@@ -133,13 +133,11 @@ def generate_response(
     canvas[:, :prompt_length] = input_ids
 
     transfer_schedule = compute_schedule(conf.generation_length, conf.steps)
-    logger.info(f"Transfer schedule: {transfer_schedule}")
-
-    for step, transfer_count in enumerate(transfer_schedule):
+    for step, transfer_count in tqdm(enumerate(transfer_schedule)):
         progress = (step + 1) / conf.steps
         logits = model(canvas).logits
         canvas = diffusion_step(logits, canvas, progress, transfer_count, conf.sampling_temperature)
-        print(tokenizer.decode(canvas[0].tolist()))
+        # print(tokenizer.decode(canvas[0].tolist()))
 
     # Decode the canvas.
     return tokenizer.decode(canvas[0].tolist())

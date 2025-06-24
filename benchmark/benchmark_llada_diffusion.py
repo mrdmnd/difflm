@@ -70,15 +70,16 @@ def bench_quantized_generation(
 ) -> None:
     tokenizer, model = shared_tokenizer, shared_quantized_model
     conf = LLADAInferenceConfig()
-    conf.generation_length = 128
-    conf.steps = 50
+    conf.generation_length = 64
+    conf.steps = 20
     messages = [
         {
             "role": "user",
             "content": "If there are three apples in a basket and two oranges, how many fruits are there in total?",
         }
     ]
-    generate_response(messages, tokenizer, model, conf)
+    output = generate_response(messages, tokenizer, model, conf)
+    print(output)
 
     # print("Warming up...")
     # for _ in range(3):

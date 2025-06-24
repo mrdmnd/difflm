@@ -70,7 +70,7 @@ select = [
     "RUF",
 ]
 
-# Ignore missing TODO link and 
+# Ignore missing TODO link and
 ignore = ["TD003", "F722", "PLR0914"]
 # "bugbear" checks are not fixable by default
 unfixable = ["B"]
