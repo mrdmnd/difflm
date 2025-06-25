@@ -122,9 +122,6 @@ def generate_response(
     model: torch.nn.Module,
     conf: LLADAInferenceConfig,
 ) -> str:
-    if conf.device == "cuda" and hasattr(torch.cuda, "graphs") and torch.cuda.is_available():
-        torch.cuda.synchronize()
-
     chat_input = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
     input_ids = torch.tensor(tokenizer(chat_input)["input_ids"], device=conf.device).unsqueeze(0)
     prompt_length = input_ids.shape[1]
