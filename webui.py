@@ -135,6 +135,12 @@ async def lifespan(app: FastAPI):
     )
     logger.info("Compiling model...")
     MODEL = torch.compile(MODEL)
+    logger.info("Priming model...")
+    messages = [{"role": "user", "content": "Hello, how are you?"}]
+    chat_input = TOKENIZER.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+    input_ids = torch.tensor(TOKENIZER(chat_input)["input_ids"], device=DEVICE).unsqueeze(0)
+    _ = MODEL(input_ids)
+    logger.info("Model primed.")
     yield
 
     # Clean up and release resources

@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resetBtn.disabled = !hasState;
 
         // Special case: if generation is finished, disable play/step.
-        if (hasState && state.current_step >= state.max_steps - 1) {
+        if (hasState && state.current_step >= state.max_steps) {
             stopPlayback();
             playBtn.disabled = true;
             stepBtn.disabled = true;
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .attr("width", "100%")
             .attr("height", "100%");
 
-        const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+        const margin = { top: 20, right: 20, bottom: 40, left: 20 };
         const width = scheduleVis.clientWidth - margin.left - margin.right;
         const height = scheduleVis.clientHeight - margin.top - margin.bottom;
 
@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         g.append("g")
             .attr("transform", `translate(0,${height})`)
-            .call(d3.axisBottom(x).tickValues(x.domain().filter((d, i) => i % 5 === 0 || i === schedule.length - 1)))
+            .call(d3.axisBottom(x).tickValues(x.domain().filter((d, i) => i === 0 || (i + 1) % 5 === 0 || i === schedule.length - 1)))
             .append("text")
             .attr("fill", "#fff")
             .attr("x", width / 2)
@@ -79,32 +79,27 @@ document.addEventListener('DOMContentLoaded', () => {
             .attr("text-anchor", "middle")
             .text("Diffusion Step");
 
-        g.append("g")
-            .call(d3.axisLeft(y))
-            .append("text")
-            .attr("fill", "#fff")
-            .attr("transform", "rotate(-90)")
-            .attr("y", 6)
-            .attr("dy", "-3.5em")
-            .attr("text-anchor", "end")
-            .text("Tokens to Sample");
-
-        g.selectAll(".bar")
+        const bars = g.selectAll(".bar-group")
             .data(schedule)
-            .enter().append("rect")
+            .enter()
+            .append("g")
+            .attr("transform", (d, i) => `translate(${x(i)}, 0)`);
+
+        bars.append("rect")
             .attr("class", "bar")
-            .attr("x", (d, i) => x(i))
             .attr("y", d => y(d))
             .attr("width", x.bandwidth())
             .attr("height", d => height - y(d))
             .attr("fill", (d, i) => (state && i === state.current_step) ? "#28a745" : "#4267B2");
 
-        // Highlight current step
-        if (state) {
-            g.selectAll(".bar")
-                .filter((d, i) => i === state.current_step)
-                .attr("fill", "#28a745");
-        }
+        bars.append("text")
+            .text(d => d)
+            .attr("x", x.bandwidth() / 2)
+            .attr("y", d => y(d) + 12) // Position text inside the bar
+            .attr("text-anchor", "middle")
+            .attr("fill", "white")
+            .style("font-size", "10px")
+            .style("display", d => (height - y(d)) < 15 ? "none" : "block"); // Hide if bar is too small
     }
 
     function renderCanvas() {
@@ -122,6 +117,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (index < prompt_length) {
                 span.classList.add('prompt-token');
+            } else if (token === '<|mdm_mask|>') {
+                span.classList.add('mdm-mask-token');
             } else if (token === '[MASK]') {
                 span.classList.add('mask-token');
             } else {
@@ -149,20 +146,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
         const x = d3.scaleLinear().range([0, width]).domain([0, d3.max(probabilities)]);
-        const y = d3.scaleBand().range([height, 0]).padding(0.1).domain(tokens.map(t => t.replace(/\\n/g, '↵').replace(/ /g, '␣')));
+        const y = d3.scaleBand().range([0, height]).padding(0.1).domain(tokens.map(t => t.replace(/\\n/g, '↵').replace(/ /g, '␣')));
 
         g.append("g").call(d3.axisLeft(y));
         g.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(3, "%"));
 
-        g.selectAll(".bar")
+        const bars = g.selectAll(".bar")
             .data(probabilities)
-            .enter().append("rect")
+            .enter();
+
+        bars.append("rect")
             .attr("class", "bar")
             .attr("y", (d, i) => y(tokens[i].replace(/\\n/g, '↵').replace(/ /g, '␣')))
             .attr("height", y.bandwidth())
             .attr("x", 0)
             .attr("width", d => x(d))
             .attr("fill", "#6BAA75");
+
+        // Add text labels to the bars
+        bars.append("text")
+            .attr("class", "bar-label")
+            .attr("x", d => x(d) + 5) // Position text to the right of the bar
+            .attr("y", (d, i) => y(tokens[i].replace(/\\n/g, '↵').replace(/ /g, '␣')) + y.bandwidth() / 2)
+            .attr("dy", ".35em") // Vertically center
+            .text(d => d.toFixed(3));
     }
 
 
@@ -170,7 +177,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function createStateAndFetch() {
         const prompt = promptInput.value;
         if (!prompt) {
-            alert("Please enter a prompt.");
+            // alert("Please enter a prompt.");
+            // Instead of alerting, just do nothing if there is no prompt.
+            // this allows sliders to be adjusted without a prompt.
+            // A new state will be created on play/step anyway.
             return;
         }
 
@@ -205,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state = await response.json();
             updateUI();
 
-            if (state.current_step >= state.max_steps - 1) {
+            if (state.current_step >= state.max_steps) {
                 stopPlayback();
             }
         } catch (error) {
@@ -256,14 +266,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (state) {
                     isPlaying = true;
                     playBtn.textContent = "Pause";
-                    playInterval = setInterval(performStep, 100);
+                    playInterval = setInterval(performStep, 10);
                 }
             });
         } else {
             // If state exists, just start playing from where it is.
             isPlaying = true;
             playBtn.textContent = "Pause";
-            playInterval = setInterval(performStep, 100);
+            playInterval = setInterval(performStep, 10);
         }
     }
 
@@ -282,6 +292,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             performStep();
         }
+    }
+
+    function resetStateOnClient() {
+        stopPlayback();
+        state = null;
+        updateUI();
     }
 
     function updateUI() {
@@ -305,7 +321,18 @@ document.addEventListener('DOMContentLoaded', () => {
         genLengthSlider.addEventListener('input', () => updateSliderValue(genLengthSlider, genLengthValue));
         stepsSlider.addEventListener('input', () => updateSliderValue(stepsSlider, stepsValue));
         tempSlider.addEventListener('input', () => updateSliderValue(tempSlider, tempValue));
-        promptInput.addEventListener('input', updateControlsState);
+
+        // Reset state when settings are changed by creating a new state on the server
+        genLengthSlider.addEventListener('change', createStateAndFetch);
+        stepsSlider.addEventListener('change', createStateAndFetch);
+        tempSlider.addEventListener('change', createStateAndFetch);
+
+        // Clear state if prompt is changed
+        promptInput.addEventListener('input', () => {
+            if (state) {
+                resetStateOnClient();
+            }
+        });
 
         // Set up button listeners
         promptInput.addEventListener('keydown', (e) => {
@@ -323,7 +350,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Initial UI state
         updateUI();
-        updateControlsState();
     }
 
     init();
