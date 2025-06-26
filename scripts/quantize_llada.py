@@ -1,3 +1,20 @@
+"""
+This script uses Modal to quantize the LLaDA family of models.
+
+First, install modal and log into the CLI.
+uv add modal
+uv run modal login
+
+Then, add an environment and a volume to the project.
+uv run modal volume create quantized-model-output
+
+Then, run the quantization script:
+uv run modal run scripts/quantize_llada.py
+
+Finally you need to grab the model from the volume when it's done.
+uv run modal volume get quantized-model-output llada-8b-instruct-Nbit-gptq .
+"""
+
 import modal
 
 image = (
@@ -27,7 +44,7 @@ volume_config = {"/quantized-model-output": output_volume}
 
 app = modal.App("quantize-llada", image=image, volumes=volume_config)
 
-TRAIN_GPU_COUNT = 1
+TRAIN_GPU_COUNT = 4
 TRAIN_GPU = f"B200:{TRAIN_GPU_COUNT}"
 TRAIN_CPU_COUNT = 4
 MINUTES = 40
@@ -35,12 +52,12 @@ MINUTES = 40
 
 @app.function(gpu=TRAIN_GPU, cpu=TRAIN_CPU_COUNT, timeout=MINUTES * 60)
 def quantize_model() -> None:
-    import types
+    import types  # noqa: PLC0415
 
-    import torch
-    from loguru import logger
-    from optimum.gptq import GPTQQuantizer
-    from transformers import AutoModel, AutoTokenizer
+    import torch  # noqa: PLC0415
+    from loguru import logger  # noqa: PLC0415
+    from optimum.gptq import GPTQQuantizer  # noqa: PLC0415
+    from transformers import AutoModel, AutoTokenizer  # noqa: PLC0415
 
     output_volume.reload()
 
@@ -70,7 +87,7 @@ def quantize_model() -> None:
     )
     logger.info("Patching model forward pass...")
 
-    def patched_forward(self, x, *args, attention_bias=None, layer_past=None, use_cache=False, **kwargs):
+    def patched_forward(self, x, *args, attention_bias=None, layer_past=None, use_cache=False, **kwargs):  # noqa
         """
         Patched forward that handles both positional and keyword arguments for attention_bias
         """
@@ -102,7 +119,7 @@ def quantize_model() -> None:
 
     logger.info("Setting up GPTQ quantizer...")
     quantizer = GPTQQuantizer(
-        bits=4,
+        bits=8,
         group_size=128,
         desc_act=False,
         sym=True,
@@ -116,7 +133,7 @@ def quantize_model() -> None:
     quantizer.quantize_model(model, tokenizer)
 
     logger.info("Quantization done, saving model...")
-    output_path = "/quantized-model-output/llada-8b-instruct-4bit-gptq"
+    output_path = "/quantized-model-output/llada-8b-instruct-8bit-gptq"
     logger.info(f"Saving model to {output_path}")
     quantizer.save(model, output_path)
     tokenizer.save_pretrained(output_path)
@@ -125,5 +142,5 @@ def quantize_model() -> None:
 
 
 @app.local_entrypoint()
-def main():
+def main() -> None:
     quantize_model.remote()

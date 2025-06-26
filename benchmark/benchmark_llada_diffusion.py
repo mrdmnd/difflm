@@ -1,4 +1,3 @@
-import platform
 import time
 
 import torch
@@ -6,72 +5,38 @@ import torch.profiler
 from loguru import logger
 from transformers import AutoModel, AutoTokenizer, PreTrainedTokenizerBase
 
-try:
-    from transformers import BitsAndBytesConfig
-except ImportError:
-    BitsAndBytesConfig = None  # type: ignore
-
 from difflm.generation.llada_diffusion_model import LLADAInferenceConfig, generate_response
 
 
-def load_tokenizer() -> PreTrainedTokenizerBase:
-    print("Loading tokenizer...")
+def load_model(compiled: bool = True) -> tuple[PreTrainedTokenizerBase, torch.nn.Module]:
+    logger.info("Loading tokenizer...")
     t0 = time.perf_counter_ns()
-    tokenizer = AutoTokenizer.from_pretrained("GSAI-ML/LLaDA-8B-Instruct", trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained("./quantized_models/llada-8b-instruct-8bit-gptq", trust_remote_code=True)
     t1 = time.perf_counter_ns()
-    print(f"Tokenizer loaded in {(t1 - t0) / 1e6:.2f} milliseconds")
-    return tokenizer
+    logger.info(f"Tokenizer loaded in {(t1 - t0) / 1e6:.2f} milliseconds")
 
-
-def load_model(quantized: bool = True, compiled: bool = True) -> torch.nn.Module:
-    quantization_config = None
-    if quantized:
-        if platform.system() == "Linux" and BitsAndBytesConfig:
-            quantization_config = BitsAndBytesConfig(
-                load_in_8bit=True,
-                llm_int8_threshold=6.0,
-                llm_int8_has_fp16_weight=False,
-            )
-        else:
-            if platform.system() != "Linux":
-                logger.warning("Quantization is only available on Linux, loading model without it.")
-            else:
-                logger.warning("bitsandbytes is not installed, loading model without quantization.")
-            quantized = False
-
-    print("Loading model..." if not quantized else "Loading quantized model...")
-    t1 = time.perf_counter_ns()
-    if quantized:
-        model = AutoModel.from_pretrained(
-            "GSAI-ML/LLaDA-8B-Instruct",
-            trust_remote_code=True,
-            device_map="auto",
-            quantization_config=quantization_config,
-            low_cpu_mem_usage=True,
-            torch_dtype=torch.float16,
-        )
-    else:
-        model = AutoModel.from_pretrained(
-            "GSAI-ML/LLaDA-8B-Instruct",
-            trust_remote_code=True,
-            device_map="auto",
-            low_cpu_mem_usage=True,
-            torch_dtype=torch.float16,
-        )
+    logger.info("Loading model...")
     t2 = time.perf_counter_ns()
-    print(f"Model loaded in {(t2 - t1) / 1e6:.2f} milliseconds")
+    model = AutoModel.from_pretrained(
+        "./quantized_models/llada-8b-instruct-8bit-gptq",
+        trust_remote_code=True,
+        device_map="auto",
+        low_cpu_mem_usage=True,
+        torch_dtype=torch.float16,
+    )
+    t3 = time.perf_counter_ns()
+    logger.info(f"Model loaded in {(t3 - t2) / 1e6:.2f} milliseconds")
 
     if compiled:
-        if quantized:
-            logger.warning("Model is quantized, skipping compilation due to missing support for bitsandbytes.")
-        else:
-            logger.info("Compiling model...")
-            t3 = time.perf_counter_ns()
-            model = torch.compile(model, mode="reduce-overhead")
-            t4 = time.perf_counter_ns()
-            print(f"Model compiled in {(t4 - t3) / 1e6:.2f} milliseconds")
+        if model.device.type != "cuda":
+            raise ValueError("Model must be on CUDA device to compile")
+        logger.info("Compiling model...")
+        t3 = time.perf_counter_ns()
+        model = torch.compile(model)
+        t4 = time.perf_counter_ns()
+        logger.info(f"Model compiled in {(t4 - t3) / 1e6:.2f} milliseconds")
 
-    return model
+    return tokenizer, model
 
 
 def bench_generation(
@@ -79,7 +44,7 @@ def bench_generation(
     model: torch.nn.Module,
 ) -> None:
     conf = LLADAInferenceConfig()
-    conf.generation_length = 32
+    conf.generation_length = 64
     conf.steps = 15
     messages = [
         {
@@ -97,7 +62,7 @@ def bench_generation(
         activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
         record_shapes=False,
         profile_memory=False,
-        with_stack=True,
+        with_stack=False,
     ) as torch_prof:
         output = generate_response(messages, tokenizer, model, conf)
 
@@ -107,6 +72,5 @@ def bench_generation(
 
 
 if __name__ == "__main__":
-    tokenizer = load_tokenizer()
-    model = load_model(quantized=True, compiled=False)
+    tokenizer, model = load_model(compiled=True)
     bench_generation(tokenizer, model)
