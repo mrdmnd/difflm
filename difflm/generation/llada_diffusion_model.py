@@ -112,7 +112,9 @@ def diffusion_step(
     transfer_mask = torch.zeros_like(canvas, dtype=torch.bool)
     transfer_mask.scatter_(1, transfer_indices, True)
 
-    return torch.where(transfer_mask, sampled_tokens, canvas)
+    new_canvas = torch.where(transfer_mask, sampled_tokens, canvas)
+    # Return the new canvas, the probability distribution for selecting each token, and the confidence in the masked tokens.
+    return new_canvas, probs, masked_confidence
 
 
 @torch.no_grad()
@@ -133,7 +135,7 @@ def generate_response(
     for step, transfer_count in tqdm(enumerate(transfer_schedule)):
         progress = (step + 1) / conf.steps
         logits = model(canvas).logits
-        canvas = diffusion_step(logits, canvas, progress, transfer_count, conf.sampling_temperature)
+        canvas, _, _ = diffusion_step(logits, canvas, progress, transfer_count, conf.sampling_temperature)
         # print(tokenizer.decode(canvas[0].tolist()))
 
     # Decode the canvas.

@@ -14,6 +14,15 @@ dependencies = [
     "tqdm>=4.67.1",
     "transformers>=4.52.4",
     "modal>=1.0.4",
+    "fastapi>=0.115.13",
+    "uvicorn>=0.34.3",
+    "datasets>=3.6.0",
+    "logbar>=0.0.4",
+    "threadpoolctl>=3.6.0",
+    "tokenicer>=0.0.4",
+    "device-smi>=0.4.1",
+    "pillow>=11.2.1",
+    "gradio>=5.34.2",
 ]
 
 [dependency-groups]

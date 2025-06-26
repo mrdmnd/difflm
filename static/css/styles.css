@@ -1,0 +1,142 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f0f2f5;
+    color: #333;
+}
+
+.container {
+    display: flex;
+    gap: 20px;
+    max-width: 1600px;
+    margin: auto;
+}
+
+.panel {
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+}
+
+.control-panel {
+    flex: 1;
+}
+
+.canvas-panel {
+    flex: 2;
+}
+
+h1,
+h2 {
+    color: #1c1e21;
+    border-bottom: 1px solid #dddfe2;
+    padding-bottom: 10px;
+    margin-top: 0;
+}
+
+textarea#prompt-input {
+    width: 100%;
+    height: 100px;
+    border-radius: 6px;
+    border: 1px solid #dddfe2;
+    padding: 10px;
+    font-size: 14px;
+    margin-bottom: 20px;
+    resize: vertical;
+}
+
+.slider-container {
+    margin-bottom: 20px;
+}
+
+.slider-container label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.slider-container input[type="range"] {
+    width: 100%;
+}
+
+#schedule-container {
+    margin-top: 20px;
+}
+
+#schedule-vis {
+    width: 100%;
+    height: 100px;
+    border: 1px solid #dddfe2;
+    border-radius: 6px;
+}
+
+.debugger-controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.debugger-controls button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    background-color: #4267B2;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.debugger-controls button:hover {
+    background-color: #365899;
+}
+
+.debugger-controls button#reset-btn {
+    background-color: #d9534f;
+}
+
+.debugger-controls button#reset-btn:hover {
+    background-color: #c9302c;
+}
+
+#canvas-display {
+    border: 1px solid #dddfe2;
+    padding: 10px;
+    border-radius: 6px;
+    min-height: 200px;
+    font-family: monospace;
+    line-height: 1.5;
+    overflow-wrap: break-word;
+}
+
+#token-prob-container {
+    margin-bottom: 20px;
+}
+
+#token-prob-vis {
+    width: 100%;
+    height: 150px;
+    border: 1px solid #dddfe2;
+    border-radius: 6px;
+}
+
+.token {
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.prompt-token {
+    background-color: #e7f3ff;
+}
+
+.generated-token {
+    background-color: #d4edda;
+}
+
+.mask-token {
+    background-color: #f8d7da;
+}
